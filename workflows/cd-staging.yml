@@ -1,0 +1,37 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy-to-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Check if APP_STG_PATH exists
+      run: |
+        if [ -z "${{ vars.APP_STG_PATH }}" ]; then
+          echo "APP_STG_PATH is not set"
+          exit 1
+        fi
+      
+    - name: Generate .env file
+      run: |
+        echo "APP_STG_PORT=${{ vars.APP_STG_PORT }}" >> .env
+        echo "MINIO_STG_ENDPOINT=${{ vars.MINIO_STG_ENDPOINT }}" >> .env
+        echo "MINIO_STG_ACCESS_KEY=${{ vars.MINIO_STG_ACCESS_KEY }}" >> .env
+        echo "MINIO_STG_SECRET_KEY=${{ vars.MINIO_STG_SECRET_KEY }}" >> .env
+        
+    - name: Deploy to staging server
+      run: |
+        sudo docker compose up --build --detach pacmusic-stg
+        
+    - name: Test Hit Endpoint
+      run: |
+        sleep 10
+        curl http://localhost:5001

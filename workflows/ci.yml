@@ -1,0 +1,30 @@
+name: Dev Testing
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    environment: dev-testing
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Create .env file
+      run: |
+        echo "APP_STG_PORT=${{ vars.MINIO_DEV_ENDPOINT }}" >> .env
+        echo "MINIO_STG_ENDPOINT=${{ vars.MINIO_DEV_ENDPOINT }}" >> .env
+        echo "MINIO_STG_ACCESS_KEY=${{ vars.MINIO_DEV_ACCESS_KEY }}" >> .env
+        echo "MINIO_STG_SECRET_KEY=${{ vars.MINIO_DEV_SECRET_KEY }}" >> .env
+        
+    - name: Build and test
+      run: |
+        sudo docker compose up --build --detach pacmusic-dev
+        
+    - name: Test application
+      run: |
+        sleep 10
+        curl http://localhost:5000

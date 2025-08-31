@@ -1,0 +1,57 @@
+name: Deploy Production
+
+on:
+  release:
+    types: [ published, edited ]
+
+jobs:
+  push-to-registry:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Login to DockerHub
+      run: |
+        echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+        
+    - name: Build and push Docker images
+      run: |
+        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/pacmusic:${{ github.ref_name }} .
+        docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/pacmusic:latest .
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/pacmusic:${{ github.ref_name }}
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/pacmusic:latest
+
+  deploy-to-production:
+    needs: push-to-registry
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Check if APP_PROD_PATH exists
+      run: |
+        if [ -z "${{ vars.APP_PROD_PATH }}" ]; then
+          echo "APP_PROD_PATH is not set"
+          exit 1
+        fi
+        
+    - name: Generate .env file
+      run: |
+        echo "APP_PROD_PORT=${{ vars.APP_PROD_PORT }}" >> .env
+        echo "MINIO_PROD_ENDPOINT=${{ vars.MINIO_PROD_ENDPOINT }}" >> .env
+        echo "MINIO_PROD_ACCESS_KEY=${{ vars.MINIO_PROD_ACCESS_KEY }}" >> .env
+        echo "MINIO_PROD_SECRET_KEY=${{ vars.MINIO_PROD_SECRET_KEY }}" >> .env
+        
+    - name: Deploy to production server
+      run: |
+        sudo docker compose down pacmusic-prod
+        sudo docker compose up --build --detach pacmusic-prod
+        
+    - name: Test Hit Endpoint
+      run: |
+        sleep 10
+        curl http://localhost:5000
